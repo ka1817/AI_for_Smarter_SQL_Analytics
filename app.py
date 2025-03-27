@@ -1,11 +1,10 @@
 import streamlit as st
 import requests
 
-FASTAPI_URL = "http://localhost:4000"  
+FASTAPI_URL = "http://backend:4000"  
 
 st.title("SQL Query Executor with FastAPI & Streamlit")
 
-# Database connection form
 st.sidebar.header("Database Connection")
 db_name = st.sidebar.text_input("Database Name")
 db_user = st.sidebar.text_input("User")
@@ -29,7 +28,6 @@ if st.sidebar.button("Connect"):
     else:
         st.sidebar.error(f"Error: {response.json().get('detail')}")
 
-# Query execution form
 st.header("Execute SQL Query")
 query = st.text_area("Enter your SQL query:")
 

@@ -9,12 +9,10 @@ from langchain.agents.agent_toolkits import SQLDatabaseToolkit
 import os
 from dotenv import load_dotenv
 import uvicorn
-# Load environment variables
 load_dotenv()
 
 app = FastAPI()
 
-# Request model for database connection
 data_store = {}
 
 class DBConfig(BaseModel):
