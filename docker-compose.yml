@@ -1,20 +1,28 @@
-version: "3.8"
+version: "3.9"
 
 services:
   backend:
-    image: pranavreddy123/fastapi-backend:latest
-    container_name: analytics_backend
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: backend
     ports:
       - "4000:4000"
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}  
+      - GROQ_API_KEY=${GROQ_API_KEY} 
     restart: always
 
   frontend:
-    image: pranavreddy123/streamlit-frontend:latest
-    container_name: analytics_frontend
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: frontend
     ports:
       - "8501:8501"
     depends_on:
-      - backend
+      - backend 
     restart: always
+
+networks:
+  default:
+    driver: bridge

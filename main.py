@@ -1,65 +1,69 @@
-from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy import create_engine
-from langchain.sql_database import SQLDatabase
+import pandas as pd
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from langchain.prompts import PromptTemplate
+from langchain.schema import HumanMessage
 from langchain_groq import ChatGroq
-from langchain.agents import create_sql_agent
-from langchain.agents.agent_types import AgentType
-from langchain.agents.agent_toolkits import SQLDatabaseToolkit
-import os
 from dotenv import load_dotenv
+import os
+import io
 import uvicorn
+
 load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-app = FastAPI()
+app = FastAPI(title="AI-Powered Data Analysis API")
 
-data_store = {}
+chat = ChatGroq(api_key=GROQ_API_KEY, model='llama-3.3-70b-versatile')
 
-class DBConfig(BaseModel):
-    db_name: str
-    db_user: str
-    db_password: str
-    db_host: str
-    db_port: str
-    api_key: str  # Groq API Key
+df = None
 
-class QueryRequest(BaseModel):
-    query: str
 
-def get_sql_agent(db_url: str, api_key: str):
+@app.post("/upload/")
+async def upload_csv(file: UploadFile = File(...)):
+    global df
+
     try:
-        engine = create_engine(db_url)
-        db = SQLDatabase(engine)
-        llm = ChatGroq(api_key=api_key, model='gemma2-9b-it')
-        toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-        return create_sql_agent(llm=llm, toolkit=toolkit, agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True)
+        df = pd.read_csv(io.StringIO(file.file.read().decode("utf-8")))
+        return {"message": "File uploaded successfully", "columns": df.columns.tolist()}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error reading CSV file: {str(e)}")
 
-@app.post("/connect")
-def connect_db(config: DBConfig):
-    db_url = f"postgresql://{config.db_user}:{config.db_password}@{config.db_host}:{config.db_port}/{config.db_name}"
-    try:
-        agent = get_sql_agent(db_url, config.api_key)
-        data_store["agent"] = agent  
-        return {"message": "Database connected successfully!"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/query")
-def execute_query(request: QueryRequest):
-    agent = data_store.get("agent")
-    if not agent:
-        raise HTTPException(status_code=400, detail="Database not connected. Please connect first.")
-    try:
-        result = agent.run(request.query)
-        return {"result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query execution error: {str(e)}")
+@app.get("/analyze/")
+async def analyze_data(question: str = Query(..., description="Ask a question about the dataset")):
+    global df
 
-@app.get("/")
-def root():
-    return {"message": "Welcome to the FastAPI SQL Analysis API! Use /connect to set up the database and /query to run queries."}
+    if df is None:
+        raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a CSV file first.")
+
+    summary = df.describe(include="all").to_string()
+
+    template = PromptTemplate(
+        input_variables=["data_summary", "question"],
+        template="""
+        You are a data analyst and business strategist. Your goal is to analyze datasets and extract key insights.
+        
+        **Dataset Summary:**  
+        {data_summary}  
+
+        **Business Intelligence Tasks:**  
+        - Identify key trends, patterns, and outliers in the data.  
+        - Highlight critical factors affecting business performance.  
+        - Provide strategic recommendations based on the data.  
+        - Suggest actions for optimizing operations, customer satisfaction, or revenue growth.  
+
+        **User Question:**  
+        {question}  
+
+        Provide a detailed, well-structured response with actionable insights.
+        """
+    )
+
+    prompt = template.format(data_summary=summary, question=question)
+
+    response = chat([HumanMessage(content=prompt)])
+
+    return {"question": question, "insights": response.content}
 
 
 if __name__=="__main__":

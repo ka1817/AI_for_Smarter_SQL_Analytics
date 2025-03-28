@@ -1,46 +1,67 @@
 import streamlit as st
 import requests
+import time
 
-FASTAPI_URL = "http://backend:4000"  
+API_URL = "http://backend:4000"
 
-st.title("SQL Query Executor with FastAPI & Streamlit")
+st.set_page_config(page_title="📊 AI Business Insights", layout="wide")
 
-st.sidebar.header("Database Connection")
-db_name = st.sidebar.text_input("Database Name")
-db_user = st.sidebar.text_input("User")
-db_password = st.sidebar.text_input("Password", type="password")
-db_host = st.sidebar.text_input("Host", value="localhost")
-db_port = st.sidebar.text_input("Port", value="5432")
-api_key = st.sidebar.text_input("Groq API Key", type="password")
+st.sidebar.header("📂 Upload Dataset")
+uploaded_file = st.sidebar.file_uploader("Upload CSV File", type=["csv"])
 
-if st.sidebar.button("Connect"):
-    payload = {
-        "db_name": db_name,
-        "db_user": db_user,
-        "db_password": db_password,
-        "db_host": db_host,
-        "db_port": db_port,
-        "api_key": api_key
-    }
-    response = requests.post(f"{FASTAPI_URL}/connect", json=payload)
-    if response.status_code == 200:
-        st.sidebar.success("Connected to the database successfully!")
+st.title("📊 AI-Powered Business Insights")
+st.write("Leverage AI to analyze your data and extract meaningful insights.")
+
+if uploaded_file is not None:
+    if "dataset_uploaded" not in st.session_state:
+        st.session_state["dataset_uploaded"] = False
+
+    if not st.session_state["dataset_uploaded"]:
+        with st.sidebar:
+            with st.spinner("Uploading file..."):
+                files = {"file": uploaded_file.getvalue()}
+                response = requests.post(f"{API_URL}/upload/", files=files)
+                time.sleep(1)  
+                if response.status_code == 200:
+                    st.success("✅ File uploaded successfully!")
+                    columns = response.json().get("columns", [])
+                    st.session_state["dataset_uploaded"] = True
+                    st.session_state["columns"] = columns
+                else:
+                    st.error("❌ Error uploading file. Please try again.")
+
+if "dataset_uploaded" in st.session_state and st.session_state["dataset_uploaded"]:
+    st.sidebar.subheader("📌 Dataset Columns")
+    st.sidebar.write(", ".join(st.session_state["columns"]))
+
+st.subheader("💡 Ask a Question About Your Data")
+question = st.text_input("Enter your question", placeholder="E.g., What are the key trends in the data?")
+
+if st.button("🔍 Get Insights"):
+    if "dataset_uploaded" not in st.session_state or not st.session_state["dataset_uploaded"]:
+        st.error("❌ Please upload a dataset first.")
+    elif not question:
+        st.error("❌ Please enter a question.")
     else:
-        st.sidebar.error(f"Error: {response.json().get('detail')}")
+        with st.spinner("Generating insights..."):
+            params = {"question": question}
+            response = requests.get(f"{API_URL}/analyze/", params=params)
+            time.sleep(1)  
 
-st.header("Execute SQL Query")
-query = st.text_area("Enter your SQL query:")
+            if response.status_code == 200:
+                insights = response.json().get("insights", "No insights found.")
+                st.subheader("📢 AI-Generated Insights")
+                st.write(insights)
+            else:
+                st.error("❌ Error retrieving insights. Please try again.")
 
-if st.button("Run Query"):
-    if not query.strip():
-        st.warning("Please enter a query.")
-    else:
-        query_payload = {"query": query}
-        response = requests.post(f"{FASTAPI_URL}/query", json=query_payload)
-        
-        if response.status_code == 200:
-            result = response.json().get("result", "No result returned.")
-            st.success("Query executed successfully!")
-            st.write(result)
-        else:
-            st.error(f"Error: {response.json().get('detail')}")
+with st.expander("📌 About This App"):
+    st.write("""
+    - **Upload any dataset** and analyze it with AI.
+    - **Ask business-related questions** to get insights.
+    - **Powered by LLMs** for advanced analytics.
+    - **Future enhancements:** Data visualization, trend predictions, and more!
+    """)
+
+st.sidebar.markdown("---")
+st.sidebar.info("Developed by AI-Powered Data Team 🚀")

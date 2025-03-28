@@ -1,31 +1,39 @@
-name: Docker Build & Push
+name: Build and Push Docker Images
 
 on:
   push:
     branches:
-      - main  # Runs when changes are pushed to the main branch
+      - main
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: 🛎 Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      - name: 🔧 Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Build and push backend image
-      run: |
-        docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/fastapi-backend:latest \
-          --build-arg GROQ_API_KEY=${{ secrets.GROQ_API_KEY }} -f backend.Dockerfile .
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/fastapi-backend:latest
+      - name: 🔐 Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build and push frontend image
-      run: |
-        docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/streamlit-frontend:latest -f frontend.Dockerfile .
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/streamlit-frontend:latest
+      - name: 🏗 Build and Push Backend Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: backend.Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/smart-analytics-backend:latest
+
+      - name: 🏗 Build and Push Frontend Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: frontend.Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/smart-analytics-frontend:latest

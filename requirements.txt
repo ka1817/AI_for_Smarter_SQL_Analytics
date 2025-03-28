@@ -6,4 +6,5 @@ streamlit
 python-dotenv
 uvicorn
 langchain-community
-psycopg2
+psycopg2 
+python-multipart
